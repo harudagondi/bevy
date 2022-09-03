@@ -65,9 +65,7 @@ pub trait Decodable: Send + Sync + 'static {
     type Controller: Send + Sync;
 
     /// Build and return a [`Self::Decoder`] for the implementing type
-    fn decoder(&self) -> Self::Decoder;
-    /// Build and return a [`Self::Controller`] for the implementing type
-    fn controller(&self) -> Self::Controller;
+    fn to_decoder_and_controller(&self) -> (Self::Decoder, Self::Controller);
 }
 
 impl Decodable for AudioSource {
@@ -75,9 +73,7 @@ impl Decodable for AudioSource {
     type DecoderItem = <rodio::Decoder<Cursor<AudioSource>> as Iterator>::Item;
     type Controller = ();
 
-    fn decoder(&self) -> Self::Decoder {
-        rodio::Decoder::new(Cursor::new(self.clone())).unwrap()
+    fn to_decoder_and_controller(&self) -> (Self::Decoder, Self::Controller) {
+        (rodio::Decoder::new(Cursor::new(self.clone())).unwrap(), ())
     }
-
-    fn controller(&self) -> Self::Controller {}
 }

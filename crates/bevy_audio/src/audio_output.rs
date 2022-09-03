@@ -47,16 +47,17 @@ where
         audio_source: &Source,
         repeat: bool,
     ) -> (Option<Sink>, Source::Controller) {
+        let (decoder, controller) = audio_source.to_decoder_and_controller();
         let sink = self.stream_handle.as_ref().map(|stream_handle| {
             let sink = Sink::try_new(stream_handle).unwrap();
             if repeat {
-                sink.append(audio_source.decoder().repeat_infinite());
+                sink.append(decoder.repeat_infinite());
             } else {
-                sink.append(audio_source.decoder());
+                sink.append(decoder);
             }
             sink
         });
-        (sink, audio_source.controller())
+        (sink, controller)
     }
 
     fn try_play_queued(
