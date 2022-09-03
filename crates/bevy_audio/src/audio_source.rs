@@ -61,16 +61,23 @@ pub trait Decodable: Send + Sync + 'static {
     type Decoder: rodio::Source + Send + Iterator<Item = Self::DecoderItem>;
     /// A single value given by the decoder
     type DecoderItem: rodio::Sample + Send + Sync;
+    /// The controller that can control the playing sound
+    type Controller: Send + Sync;
 
     /// Build and return a [`Self::Decoder`] for the implementing type
     fn decoder(&self) -> Self::Decoder;
+    /// Build and return a [`Self::Controller`] for the implementing type
+    fn controller(&self) -> Self::Controller;
 }
 
 impl Decodable for AudioSource {
     type Decoder = rodio::Decoder<Cursor<AudioSource>>;
     type DecoderItem = <rodio::Decoder<Cursor<AudioSource>> as Iterator>::Item;
+    type Controller = ();
 
     fn decoder(&self) -> Self::Decoder {
         rodio::Decoder::new(Cursor::new(self.clone())).unwrap()
     }
+
+    fn controller(&self) -> Self::Controller {}
 }

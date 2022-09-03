@@ -77,15 +77,15 @@ where
     ///     let strong_handle = audio_sinks.get_handle(weak_handle);
     /// }
     /// ```
-    pub fn play(&self, audio_source: Handle<Source>) -> Handle<AudioSink> {
-        let id = HandleId::random::<AudioSink>();
+    pub fn play(&self, audio_source: Handle<Source>) -> Handle<AudioSink<Source>> {
+        let id = HandleId::random::<AudioSink<Source>>();
         let config = AudioToPlay {
             settings: PlaybackSettings::ONCE,
             sink_handle: id,
             source_handle: audio_source,
         };
         self.queue.write().push_back(config);
-        Handle::<AudioSink>::weak(id)
+        Handle::<AudioSink<Source>>::weak(id)
     }
 
     /// Play audio from a [`Handle`] to the audio source with [`PlaybackSettings`] that
@@ -109,15 +109,15 @@ where
         &self,
         audio_source: Handle<Source>,
         settings: PlaybackSettings,
-    ) -> Handle<AudioSink> {
-        let id = HandleId::random::<AudioSink>();
+    ) -> Handle<AudioSink<Source>> {
+        let id = HandleId::random::<AudioSink<Source>>();
         let config = AudioToPlay {
             settings,
             sink_handle: id,
             source_handle: audio_source,
         };
         self.queue.write().push_back(config);
-        Handle::<AudioSink>::weak(id)
+        Handle::<AudioSink<Source>>::weak(id)
     }
 }
 

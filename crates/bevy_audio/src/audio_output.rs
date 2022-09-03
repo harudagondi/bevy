@@ -42,8 +42,12 @@ impl<Source> AudioOutput<Source>
 where
     Source: Asset + Decodable,
 {
-    fn play_source(&self, audio_source: &Source, repeat: bool) -> Option<Sink> {
-        self.stream_handle.as_ref().map(|stream_handle| {
+    fn play_source(
+        &self,
+        audio_source: &Source,
+        repeat: bool,
+    ) -> (Option<Sink>, Source::Controller) {
+        let sink = self.stream_handle.as_ref().map(|stream_handle| {
             let sink = Sink::try_new(stream_handle).unwrap();
             if repeat {
                 sink.append(audio_source.decoder().repeat_infinite());
@@ -51,14 +55,15 @@ where
                 sink.append(audio_source.decoder());
             }
             sink
-        })
+        });
+        (sink, audio_source.controller())
     }
 
     fn try_play_queued(
         &self,
         audio_sources: &Assets<Source>,
         audio: &mut Audio<Source>,
-        sinks: &mut Assets<AudioSink>,
+        sinks: &mut Assets<AudioSink<Source>>,
     ) {
         let mut queue = audio.queue.write();
         let len = queue.len();
@@ -66,12 +71,20 @@ where
         while i < len {
             let config = queue.pop_front().unwrap();
             if let Some(audio_source) = audio_sources.get(&config.source_handle) {
-                if let Some(sink) = self.play_source(audio_source, config.settings.repeat) {
+                if let (Some(sink), control) =
+                    self.play_source(audio_source, config.settings.repeat)
+                {
                     sink.set_speed(config.settings.speed);
                     sink.set_volume(config.settings.volume);
 
                     // don't keep the strong handle. there is no way to return it to the user here as it is async
-                    let _ = sinks.set(config.sink_handle, AudioSink { sink: Some(sink) });
+                    let _ = sinks.set(
+                        config.sink_handle,
+                        AudioSink {
+                            sink: Some(sink),
+                            controller: control,
+                        },
+                    );
                 }
             } else {
                 // audio source hasn't loaded yet. add it back to the queue
@@ -87,7 +100,7 @@ pub fn play_queued_audio_system<Source: Asset + Decodable>(
     audio_output: NonSend<AudioOutput<Source>>,
     audio_sources: Option<Res<Assets<Source>>>,
     mut audio: ResMut<Audio<Source>>,
-    mut sinks: ResMut<Assets<AudioSink>>,
+    mut sinks: ResMut<Assets<AudioSink<Source>>>,
 ) {
     if let Some(audio_sources) = audio_sources {
         audio_output.try_play_queued(&*audio_sources, &mut *audio, &mut *sinks);
@@ -118,19 +131,20 @@ pub fn play_queued_audio_system<Source: Asset + Decodable>(
 ///
 #[derive(TypeUuid)]
 #[uuid = "8BEE570C-57C2-4FC0-8CFB-983A22F7D981"]
-pub struct AudioSink {
+pub struct AudioSink<Source: Decodable = AudioSource> {
     // This field is an Option in order to allow us to have a safe drop that will detach the sink.
     // It will never be None during its life
     sink: Option<Sink>,
+    controller: Source::Controller,
 }
 
-impl Drop for AudioSink {
+impl<Source: Decodable> Drop for AudioSink<Source> {
     fn drop(&mut self) {
         self.sink.take().unwrap().detach();
     }
 }
 
-impl AudioSink {
+impl<Source: Decodable> AudioSink<Source> {
     /// Gets the volume of the sound.
     ///
     /// The value `1.0` is the "normal" volume (unfiltered input). Any value other than `1.0`
@@ -190,5 +204,10 @@ impl AudioSink {
     /// It won't be possible to restart it afterwards.
     pub fn stop(&self) {
         self.sink.as_ref().unwrap().stop();
+    }
+
+    /// Returns the controller of the playing sound.
+    pub fn control(&self) -> &Source::Controller {
+        &self.controller
     }
 }
